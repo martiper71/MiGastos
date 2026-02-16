@@ -291,8 +291,9 @@
         </div>
 
         <div class="stats-row">
-            <div class="stat-item">
-                <div class="stat-label">PRESUPUESTO</div>
+            <div class="stat-item" onclick="editarPresupuesto()" style="cursor: pointer;"
+                title="Haz clic para cambiar el presupuesto">
+                <div class="stat-label">PRESUPUESTO ✏️</div>
                 <div class="stat-value" id="texto-presupuesto" style="color: var(--primary);">€0.00</div>
             </div>
             <div class="stat-item">
@@ -313,7 +314,8 @@
     <script>
         // --- 1. CONFIGURACIÓN ---
         const PB_URL = 'https://martiperpocketbase.duckdns.org';
-        const PRESUPUESTO_MENSUAL = 600;
+        // Recuperamos el presupuesto guardado o usamos 600 por defecto
+        let presupuestoMensual = parseFloat(localStorage.getItem('mi_presupuesto')) || 600;
         const pb = new PocketBase(PB_URL);
 
         // --- 2. INICIO ---
@@ -404,7 +406,7 @@
                 // Limpieza y feedback
                 inputConcepto.value = '';
                 inputImporte.value = '';
-                mostrarToast();
+                mostrarToast("Gasto guardado!");
                 await cargarGastos();
 
             } catch (err) {
@@ -415,12 +417,28 @@
             }
         }
 
+        // NUEVA FUNCIÓN: Cambiar presupuesto
+        function editarPresupuesto() {
+            const nuevo = prompt("Introduce tu nuevo presupuesto mensual:", presupuestoMensual);
+            const valor = parseFloat(nuevo);
+
+            if (!isNaN(valor) && valor > 0) {
+                presupuestoMensual = valor;
+                localStorage.setItem('mi_presupuesto', valor);
+                cargarGastos(); // Recalculamos con el nuevo presupuesto
+                mostrarToast("Presupuesto actualizado");
+            } else if (nuevo !== null) { // If user didn't cancel but entered invalid input
+                mostrarToast("Valor inválido para el presupuesto");
+            }
+        }
+
         function actualizarUI(gastado) {
-            const restante = PRESUPUESTO_MENSUAL - gastado;
-            const porcentajeRestante = Math.max(0, (restante / PRESUPUESTO_MENSUAL) * 100);
+            const presupuesto = presupuestoMensual;
+            const restante = presupuesto - gastado;
+            const porcentajeRestante = Math.max(0, (restante / presupuesto) * 100);
 
             document.getElementById('texto-gastado').textContent = `€${gastado.toFixed(2)}`;
-            document.getElementById('texto-presupuesto').textContent = `€${PRESUPUESTO_MENSUAL.toFixed(2)}`;
+            document.getElementById('texto-presupuesto').textContent = `€${presupuesto.toFixed(2)}`;
             document.getElementById('texto-restante').textContent = `€${restante.toFixed(2)}`;
             document.getElementById('texto-porcentaje').textContent = `${Math.round(porcentajeRestante)}%`;
 
@@ -442,8 +460,9 @@
             }
         }
 
-        function mostrarToast() {
+        function mostrarToast(mensaje) {
             const t = document.getElementById('toast');
+            t.textContent = mensaje;
             t.style.opacity = '1';
             setTimeout(() => t.style.opacity = '0', 2000);
         }
