@@ -362,21 +362,23 @@
 
         async function cargarGastos() {
             try {
-                // BUG FECHA ARREGLADO: Usamos fecha local para el inicio del mes
+                if (!pb.authStore.isValid) return;
+
                 const hoy = new Date();
                 const anio = hoy.getFullYear();
                 const mes = (hoy.getMonth() + 1).toString().padStart(2, '0');
                 const fechaFiltro = `${anio}-${mes}-01 00:00:00`;
 
-                const registros = await pb.collection('gastos').getFullList({
-                    filter: `created >= "${fechaFiltro}"`,
+                // Usamos 'MisGastos' (nombre real de tu colección)
+                const registros = await pb.collection('MisGastos').getFullList({
+                    filter: `created >= '${fechaFiltro}'`,
                 });
 
                 const totalGastado = registros.reduce((sum, g) => sum + (g.importe || 0), 0);
                 actualizarUI(totalGastado);
 
             } catch (err) {
-                console.error("Error cargando gastos:", err);
+                console.error("Error al cargar:", err);
             }
         }
 
@@ -388,47 +390,47 @@
             const concepto = inputConcepto.value.trim();
             const importe = parseFloat(inputImporte.value);
 
-            // BUG VALIDACIÓN ARREGLADO: Solo mayor que 0
             if (!concepto || isNaN(importe) || importe <= 0) {
                 return alert("Por favor, pon un concepto y un importe mayor que cero");
             }
 
             try {
-                btn.disabled = true; // Evitar duplicados
+                btn.disabled = true;
                 btn.textContent = "Guardando...";
 
-                await pb.collection('gastos').create({
+                // Guardamos en 'MisGastos' con los campos correctos
+                await pb.collection('MisGastos').create({
                     concepto: concepto,
                     importe: importe,
-                    usuario: pb.authStore.model.id
+                    fecha: new Date().toISOString(), // Rellenamos tu campo 'fecha'
+                    usuario: pb.authStore.model.id   // Requiere que añadas el campo 'usuario' en PocketBase
                 });
 
-                // Limpieza y feedback
                 inputConcepto.value = '';
                 inputImporte.value = '';
                 mostrarToast("Gasto guardado!");
                 await cargarGastos();
 
             } catch (err) {
-                alert("Error: " + err.message);
+                alert("Error al guardar: " + err.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = "+ Añadir Gasto";
             }
         }
 
-        // NUEVA FUNCIÓN: Cambiar presupuesto
-        function editarPresupuesto() {
+        async function editarPresupuesto() {
             const nuevo = prompt("Introduce tu nuevo presupuesto mensual:", presupuestoMensual);
-            const valor = parseFloat(nuevo);
+            if (nuevo === null) return;
 
+            const valor = parseFloat(nuevo);
             if (!isNaN(valor) && valor > 0) {
                 presupuestoMensual = valor;
                 localStorage.setItem('mi_presupuesto', valor);
-                cargarGastos(); // Recalculamos con el nuevo presupuesto
+                await cargarGastos();
                 mostrarToast("Presupuesto actualizado");
-            } else if (nuevo !== null) { // If user didn't cancel but entered invalid input
-                mostrarToast("Valor inválido para el presupuesto");
+            } else {
+                mostrarToast("Valor inválido");
             }
         }
 
