@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis Gastos</title>
+    <!-- SDK más estable vía CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/pocketbase/dist/pocketbase.umd.js"></script>
+
+    <style>
+        :root {
+            --primary: #00bcd4;
+            /* Cian */
+            --bg: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-main: #333;
+            --text-light: #888;
+            --danger: #e74c3c;
+            --success: #2ecc71;
+        }
+
+        body {
+            font-family: 'Outfit', 'Segoe UI', sans-serif;
+            background-color: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+            display: none;
+            /* Se muestra tras el login */
+        }
+
+        /* LOGIN MODAL */
+        #auth-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            max-width: 320px;
+            text-align: center;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            color: #222;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .year {
+            color: var(--primary);
+            font-weight: bold;
+            letter-spacing: 4px;
+        }
+
+        /* TARJETAS */
+        .card {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            color: var(--primary);
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid transparent;
+            background: #f0f4f8;
+            border-radius: 12px;
+            font-size: 1rem;
+            color: #555;
+            box-sizing: border-box;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+            box-shadow: 0 0 10px rgba(0, 188, 212, 0.1);
+        }
+
+        button {
+            width: 100%;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-add {
+            background: var(--primary);
+            color: white;
+            margin-top: 10px;
+        }
+
+        .btn-add:active {
+            transform: scale(0.98);
+        }
+
+        .btn-add:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* GRÁFICO CIRCULAR */
+        .chart-container {
+            position: relative;
+            width: 250px;
+            height: 250px;
+            margin: 0 auto 30px auto;
+            border-radius: 50%;
+            background: conic-gradient(var(--primary) 0%, #e0e0e0 0%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .chart-inner {
+            background: var(--bg);
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            box-shadow: inset 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .chart-percent {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #333;
+            margin: 0;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding: 0 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        /* FOOTER */
+        .footer-total {
+            text-align: left;
+            margin-top: 40px;
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            border-left: 5px solid var(--primary);
+        }
+
+        .footer-amount {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #222;
+        }
+
+        /* TOAST ANIMATION */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- MODAL DE LOGIN (MEJORADO) -->
+    <div id="auth-container">
+        <div class="login-card">
+            <h2 style="margin-top: 0;">🚀 Gastos</h2>
+            <p style="color: #888; font-size: 0.9rem; margin-bottom: 25px;">Introduce tus credenciales de PocketBase</p>
+            <div class="input-group">
+                <input type="email" id="login-email" placeholder="Email">
+            </div>
+            <div class="input-group">
+                <input type="password" id="login-pass" placeholder="Contraseña">
+            </div>
+            <button class="btn-add" onclick="login()" id="btn-login">Entrar</button>
+        </div>
+    </div>
+
+    <div class="app-container" id="app-main">
+        <header>
+            <div class="year" id="anio-actual">2026</div>
+            <h1 id="mes-actual">---</h1>
+        </header>
+
+        <div class="card">
+            <div class="input-group">
+                <label>CONCEPTO</label>
+                <input type="text" id="input-concepto" placeholder="Netflix, Cine, Comida...">
+            </div>
+
+            <div class="input-group">
+                <label>IMPORTE (€)</label>
+                <input type="number" id="input-importe" placeholder="0.00" step="0.01">
+            </div>
+
+            <button class="btn-add" onclick="anadirGasto()" id="btn-anadir">
+                <span>+</span> Añadir Gasto
+            </button>
+        </div>
+
+        <div class="chart-container" id="grafico-circular">
+            <div class="chart-inner">
+                <div class="chart-label" id="label-restante" style="font-weight:bold; color:var(--primary)">RESTANTE
+                </div>
+                <div class="chart-percent" id="texto-porcentaje">0%</div>
+            </div>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-item">
+                <div class="stat-label">PRESUPUESTO</div>
+                <div class="stat-value" id="texto-presupuesto" style="color: var(--primary);">€0.00</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">GASTADO</div>
+                <div class="stat-value" id="texto-gastado" style="color: var(--danger);">€0.00</div>
+            </div>
+        </div>
+
+        <div class="footer-total">
+            <div class="footer-label" style="font-size:0.8rem; font-weight:bold; color:var(--text-light)">RESTANTE REAL
+            </div>
+            <div class="footer-amount" id="texto-restante">€0.00</div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Gasto guardado!</div>
+
+    <script>
+        // --- 1. CONFIGURACIÓN ---
+        const PB_URL = 'https://martiperpocketbase.duckdns.org';
+        const PRESUPUESTO_MENSUAL = 600;
+        const pb = new PocketBase(PB_URL);
+
+        // --- 2. INICIO ---
+        window.addEventListener('DOMContentLoaded', async () => {
+            configurarFecha();
+            if (pb.authStore.isValid) {
+                mostrarApp();
+            }
+        });
+
+        async function login() {
+            const email = document.getElementById('login-email').value;
+            const pass = document.getElementById('login-pass').value;
+            const btn = document.getElementById('btn-login');
+
+            if (!email || !pass) return alert("Hacen falta datos");
+
+            try {
+                btn.disabled = true;
+                btn.textContent = "Entrando...";
+                await pb.collection('users').authWithPassword(email, pass);
+                mostrarApp();
+            } catch (e) {
+                alert("Error: " + e.message);
+                btn.disabled = false;
+                btn.textContent = "Entrar";
+            }
+        }
+
+        function mostrarApp() {
+            document.getElementById('auth-container').style.display = 'none';
+            document.getElementById('app-main').style.display = 'block';
+            cargarGastos();
+        }
+
+        function configurarFecha() {
+            const hoy = new Date();
+            const meses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+            document.getElementById('mes-actual').textContent = meses[hoy.getMonth()];
+            document.getElementById('anio-actual').textContent = hoy.getFullYear();
+        }
+
+        // --- 3. LÓGICA DE DATOS ---
+
+        async function cargarGastos() {
+            try {
+                // BUG FECHA ARREGLADO: Usamos fecha local para el inicio del mes
+                const hoy = new Date();
+                const anio = hoy.getFullYear();
+                const mes = (hoy.getMonth() + 1).toString().padStart(2, '0');
+                const fechaFiltro = `${anio}-${mes}-01 00:00:00`;
+
+                const registros = await pb.collection('gastos').getFullList({
+                    filter: `created >= "${fechaFiltro}"`,
+                });
+
+                const totalGastado = registros.reduce((sum, g) => sum + (g.importe || 0), 0);
+                actualizarUI(totalGastado);
+
+            } catch (err) {
+                console.error("Error cargando gastos:", err);
+            }
+        }
+
+        async function anadirGasto() {
+            const inputConcepto = document.getElementById('input-concepto');
+            const inputImporte = document.getElementById('input-importe');
+            const btn = document.getElementById('btn-anadir');
+
+            const concepto = inputConcepto.value.trim();
+            const importe = parseFloat(inputImporte.value);
+
+            // BUG VALIDACIÓN ARREGLADO: Solo mayor que 0
+            if (!concepto || isNaN(importe) || importe <= 0) {
+                return alert("Por favor, pon un concepto y un importe mayor que cero");
+            }
+
+            try {
+                btn.disabled = true; // Evitar duplicados
+                btn.textContent = "Guardando...";
+
+                await pb.collection('gastos').create({
+                    concepto: concepto,
+                    importe: importe,
+                    usuario: pb.authStore.model.id
+                });
+
+                // Limpieza y feedback
+                inputConcepto.value = '';
+                inputImporte.value = '';
+                mostrarToast();
+                await cargarGastos();
+
+            } catch (err) {
+                alert("Error: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "+ Añadir Gasto";
+            }
+        }
+
+        function actualizarUI(gastado) {
+            const restante = PRESUPUESTO_MENSUAL - gastado;
+            const porcentajeRestante = Math.max(0, (restante / PRESUPUESTO_MENSUAL) * 100);
+
+            document.getElementById('texto-gastado').textContent = `€${gastado.toFixed(2)}`;
+            document.getElementById('texto-presupuesto').textContent = `€${PRESUPUESTO_MENSUAL.toFixed(2)}`;
+            document.getElementById('texto-restante').textContent = `€${restante.toFixed(2)}`;
+            document.getElementById('texto-porcentaje').textContent = `${Math.round(porcentajeRestante)}%`;
+
+            // GRÁFICO CIRCULAR
+            const grafico = document.getElementById('grafico-circular');
+            const label = document.getElementById('label-restante');
+
+            if (restante < 0) {
+                // ESTADO EXCEDIDO: Todo en rojo
+                document.documentElement.style.setProperty('--primary', 'var(--danger)');
+                grafico.style.background = `conic-gradient(var(--danger) 0% 100%, #e0e0e0 0%)`;
+                label.textContent = "EXCEDIDO";
+                document.getElementById('texto-porcentaje').textContent = "!!!";
+            } else {
+                // ESTADO NORMAL: Proporción cian/gris
+                document.documentElement.style.setProperty('--primary', '#00bcd4');
+                grafico.style.background = `conic-gradient(var(--primary) 0% ${porcentajeRestante}%, #e0e0e0 ${porcentajeRestante}% 100%)`;
+                label.textContent = "RESTANTE";
+            }
+        }
+
+        function mostrarToast() {
+            const t = document.getElementById('toast');
+            t.style.opacity = '1';
+            setTimeout(() => t.style.opacity = '0', 2000);
+        }
+    </script>
+</body>
+
+</html>
